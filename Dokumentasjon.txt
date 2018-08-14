@@ -1,0 +1,33 @@
+Arduino code
+-
+
+Bryggesett "strøm" kretskort
+-Uses AC power
+-220v and 5v
+-
+
+Brewer "control" card
+-5v(?) AC power
+-8 pins inn and out [VCC - power, GND - ground, SCR - ?, NTC - thermo transistor/temprature sensor, BUZ - buzzer, HT1 - heater 1, HT2 - heater 2, ZER - zero]
+-Out of the 8 pin it seems that only 4/6 are critical for the brewer to function. If VCC, GND, NTC and ZER are connected no errors apper. 
+-HT1 and HT2 can be controled from the arduino via a relay with AC power.   
+-SCR has something to do with set temprature and signals to turn on heater 2 ???? dont realy know. 
+-NTC x ohm. What is the curve?
+-BUZ makes buzzer noize.
+-HT1 pin off = no heating. On ( mA, V) turns on heating.
+-HT2 pin off = no heating. 
+-ZER if off display error. Kill switch. 
+
+Connections
+-arduino
+-brewer
+-sensors
+
+Hvis ... så ..
+-Hvis tempraturmåleren (on the internal power card) ikke er koblet i, kobler bryggesette seg ut med en feilmelding.
+-Pulling out the VCC pin while heating, results in error.
+-Pulling out the HT1 pin while heating, truns off heating 1 no error.
+-If you pull out ZER, the error alerts. 
+-Pulling out BUZ, removed the error sound, no error. 
+-Wrong NTC input will result in error.
+-Pulling out SCR, no error. 

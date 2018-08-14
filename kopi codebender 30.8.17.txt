@@ -1,0 +1,275 @@
+#include <Servo.h> 
+Servo servo1;
+
+  //output devices
+  const int pinHeat1=0;  
+  const int pinHeat2=1;  
+  const int pinPumpeForward=2;
+  const int pinPumpeBackwards=3;
+  const int pinHumleMotor=4;
+  const int pinValveFill=5;
+  const int pinValveCool=6;
+  const int pinValveCirc=7;
+  const int pinValveFlush=8;
+  //input sensorer - use analog pins for more space? 
+  const int pinButton=13;  
+  const int pinFukt=A0; 
+  const int pinTemp1=A1;
+  const int pinTemp2=A2;
+  const int pinTemp3=A3;
+  const int pinWater=A4;
+
+  //faser
+  //steriliserings fase???
+  boolean startKode=true;
+  boolean startedUp=false;
+  boolean startedMesk=false; 
+  boolean startedKok=false; 
+  boolean startedCool=false;
+  boolean startedFlush=false;
+  //bryggeprogram variabler
+  boolean temp_startup=false;
+  boolean temp_meskTemprature=false;
+  boolean temp_meskTime=true;
+  boolean temp_kokeStart=false;
+  boolean temp_kokeTime=true;
+  boolean temp_humle1=true;
+  boolean temp_humle2=true;
+  boolean temp_humle3=true;
+  int meskeTid=1; //normaly 60
+  int meskeStart=0;
+  int meskeTempratur=67;
+  int kokeTid=1; //normaly 90
+  int kokeStart=0;
+  int kokeTempratur=95;
+  int humle1=3;   //når x min gjenstår
+  int humle2=2;   //når x min gjenstår
+  int humle3=1;   //når x min gjenstår
+
+  //sensor input variabler
+  float buttonInput=0; 
+  float fuktInput=0;
+  float tempSens1=0;
+  float tempSens2=0;
+  float tempSens3=0;
+  float avgTemp=0;
+  float waterLevel=0;
+
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(9600);
+  pinMode(pinHeat1, OUTPUT);
+  pinMode(pinHeat2, OUTPUT);
+  pinMode(pinPumpeForward, OUTPUT);
+  pinMode(pinPumpeBackwards, OUTPUT);
+  pinMode(pinHumleMotor, OUTPUT);
+  pinMode(pinValveFill, OUTPUT);
+  pinMode(pinValveCool, OUTPUT);
+  pinMode(pinValveCirc, OUTPUT);
+  pinMode(pinValveFlush, OUTPUT);
+  pinMode(pinHumleMotor, OUTPUT);
+  servo1.attach(14);
+  pinMode(pinButton, INPUT);
+  pinMode(pinTemp1, INPUT);
+  pinMode(pinTemp2, INPUT);
+  pinMode(pinTemp3, INPUT);
+  pinMode(pinFukt, INPUT);
+}
+
+//metode for å telle tid
+
+//metode for å bergene tempratur i Celsius fra sensor input
+//metode som forteller om det er nok vann eller ikke, fra water input.
+//metode som registrer fukt
+//metode som kutter strøm ??? --> implikerer "suicide"
+
+void loop(){ //for testing av program
+	readSensors();
+	Serial.print("FuktInput:");
+	Serial.println(fuktInput);
+	Serial.print("waterLevel:");
+	Serial.println(waterLevel);
+	Serial.print("buttonInput:");
+	Serial.println(buttonInput);
+	Serial.print("Temp1:");
+	Serial.println(toC(tempSens1));
+	Serial.print("Temp2:");
+	Serial.println(toC(tempSens2));
+	Serial.print("Temp3:");
+	Serial.println(toC(tempSens3));
+	Serial.print("avgTemp:");
+	Serial.println(toC(avgTemp));
+	digitalWrite(pinPumpeForward, LOW);
+	delay(3000);
+}
+
+void sss() { //fulle programm
+  readSensors();
+  // put your main code here, to run repeatedly:
+  //loop for tid
+  //loop hvis fukt --> shutdown
+  
+  if(startKode==true){
+    startUp();
+  }
+  if(startedUp==true){
+    startMesk();
+  }
+  if(startedMesk==true){
+    startKok();  
+  }  
+  if(startedKok==true){
+    startCool();  
+  }
+  if(startedCool==true){
+    startFlush();  
+  }
+  if(startedFlush==true){
+    pumpeForward();
+    delay(200);
+    pumpeBackwards();
+    delay(200);
+  }
+}
+
+void readSensors(){
+  buttonInput = digitalRead(pinButton);
+  tempSens1=analogRead(pinTemp1); //Sensor er 10k ohm (ved 25grader C), resistor etter er 10k ohm 
+  tempSens2=analogRead(pinTemp2); //Sensor er 10k ohm (ved 25grader C), resistor etter er 10k ohm
+  tempSens3=analogRead(pinTemp3); //Sensor er 10k ohm (ved 25grader C), resistor etter er 10k ohm
+  avgTemp=(tempSens1+tempSens2+tempSens3)/3;
+  waterLevel=analogRead(pinWater);
+  fuktInput=analogRead(pinFukt);
+  if(fuktInput<150){
+    kill();
+  }
+}
+float toC(float x){
+  float c = (0.000000327*(x*x*x))-(0.000423*(x*x))+(0.288*x)-54.7; //lag en bedre formel denne er midlertidig
+  return c; 
+}
+
+void startUp(){
+  if(buttonInput==HIGH or temp_startup==true){ //waits for button push befor starting
+    temp_startup=true;
+    digitalWrite(pinValveFill, HIGH);
+    delay(50); //remove!
+    buttonInput=digitalRead(pinButton); //remove!
+    if(buttonInput==HIGH){   //if vannsensor retunerer true stop (lukk ventil)
+      digitalWrite(pinValveFill, LOW);
+      startedUp=true;
+      startKode=false;   
+    }
+  }
+}
+void startMesk(){
+  //heat termostat to 67
+  delay(50);//remove!
+  buttonInput=digitalRead(pinButton);
+  if(buttonInput==HIGH or temp_meskTemprature==true){ //water is 67C
+    temp_meskTemprature=true;
+    digitalWrite(pinValveCirc, HIGH);
+    pumpeForward();    
+    if(temp_meskTime==true){
+      meskeStart=millis()/1000;
+      Serial.println("meskestart");
+      Serial.println(meskeStart);
+      temp_meskTime=false;
+    }
+    if((millis()/1000)>meskeStart+(meskeTid*5)){ //it should be times 60
+      pumpeBackwards();
+      delay(1000); //30sec?
+      pumpeOff();
+      digitalWrite(pinValveCirc, LOW);
+      startedMesk=true;
+      startedUp=false;     
+    }
+  }
+}
+void startKok(){
+  //heat up to boiling temprature, 95 is spesified now
+  readSensors();
+  if(buttonInput==HIGH or temp_kokeStart==true){   //sensortemp>=kokeTempratur){ //when it starts to boil
+    temp_kokeStart=true;
+    if(temp_kokeTime==true){
+      kokeStart=millis()/1000;
+      temp_kokeTime=false;
+      Serial.println("kokestart");
+      Serial.println(kokeStart);
+    }
+    if((millis()/1000)>kokeStart+(kokeTid*20)-humle1*5 and temp_humle1==true){ //humle1, multiply with 60
+      servo1.write(70);
+      Serial.println("humle1");
+      temp_humle1=false;
+    }
+    if ((millis()/1000)>kokeStart+(kokeTid*20)-humle2*5 and temp_humle2==true){ //humle2
+      servo1.write(90);
+      Serial.println("humle2");
+      temp_humle2=false;
+    }
+    if ((millis()/1000)>kokeStart+(kokeTid*20)-humle3*5 and temp_humle3==true){ //humle3
+      servo1.write(110);
+      Serial.println("humle3");
+      temp_humle3=false;
+    }
+    if((millis()/1000)>kokeStart+(kokeTid*20)){ //multiply with 60
+      //turn off heat
+      servo1.write(90); //to stopp it from running
+      startedKok=true;
+      startedMesk=false;
+    }  
+  }
+}
+void startCool(){
+  digitalWrite(pinValveCirc,HIGH);
+  delay(5000);
+  if(avgTemp<22){
+    digitalWrite(pinValveCirc, LOW);
+    startedCool=true;
+    startedKok=false; 
+  }
+ 
+}
+void startFlush(){
+  digitalWrite(pinValveFlush, HIGH);
+  delay(1000*10); //10min?
+  digitalWrite(pinValveFlush, LOW);
+  startedFlush=true;
+  startedCool=false;  
+}
+
+void pumpeForward(){
+  digitalWrite(pinPumpeBackwards, LOW);
+  delay(100);
+  digitalWrite(pinPumpeForward, HIGH);
+}
+void pumpeBackwards(){
+  digitalWrite(pinPumpeForward, LOW);
+  delay(100);
+  digitalWrite(pinPumpeBackwards, HIGH);
+}
+void pumpeOff(){
+  digitalWrite(pinPumpeBackwards, LOW);
+  digitalWrite(pinPumpeForward, LOW);
+  //ventilkontroll??
+}
+
+void kill(){
+  digitalWrite(pinPumpeBackwards, LOW);
+  digitalWrite(pinPumpeForward, LOW);
+  digitalWrite(pinValveFill, LOW);
+  digitalWrite(pinValveCool, LOW);
+  digitalWrite(pinValveCirc, LOW);
+  digitalWrite(pinValveFlush, LOW);
+  boolean startKode=false;
+  boolean startedUp=false;
+  boolean startedMesk=false; 
+  boolean startedKok=false; 
+  boolean startedCool=false;
+  boolean startedFlush=false;
+  while(true){
+    //sound alarm??
+    Serial.println("kill");
+    break;
+  }
+}
